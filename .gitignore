@@ -1,3 +1,9 @@
+# Runtime generated files
+config.json
+brief-current.json
+script-current.json
+
+# Documentation artifacts
 /aitoearn-api-guide.md
 /aitoearn-publish.png
 /视频生成接口文档.md
