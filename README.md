@@ -6,12 +6,12 @@
 
 四个 Trae 技能文件（`.md`），以**创意指导 Agent**为统一上游入口，下游 skill 为纯执行器：
 
-| 技能           | 文件                         | 角色     | 做什么                                                     |
-| -------------- | ---------------------------- | -------- | ---------------------------------------------------------- |
-| 创意指导 Agent | `SKILL-CREATIVE-DIRECTOR.md` | 统一入口 | 意图检测 -> 三档评分 -> 自适应追问 -> 输出 brief JSON -> 可选双模式润色 |
-| 图文执行       | `SKILL.md`                   | 执行器   | 接收 brief -> 模板适配 -> AI 生成图文 -> 发布抖音             |
-| 脚本创作       | `SKILL-SCRIPT.md`            | 执行器   | 接收 brief -> Cinematography 词汇表生成分镜 -> 输出脚本 JSON |
-| 视频生成       | `SKILL-VIDEO.md`             | 执行器   | 加载脚本 JSON -> AI 生成视频 -> 发布抖音                     |
+| 技能           | 文件                              | 角色     | 做什么                                                     |
+| -------------- | --------------------------------- | -------- | ---------------------------------------------------------- |
+| 创意指导 Agent | `aitoearn-creative-director.md`   | 统一入口 | 意图检测 -> 三档评分 -> 自适应追问 -> 输出 brief JSON -> 可选双模式润色 |
+| 图文执行       | `aitoearn-content-publisher.md`   | 执行器   | 接收 brief -> 英文结构化视觉指令转译 -> 用户确认 -> AI 生成图文 -> 发布抖音 |
+| 脚本创作       | `aitoearn-script-writer.md`       | 执行器   | 接收 brief -> Cinematography 词汇表生成分镜 -> 输出脚本 JSON |
+| 视频生成       | `aitoearn-video-publisher.md`     | 执行器   | 加载脚本 JSON -> AI 生成视频 -> 发布抖音                     |
 
 ### 架构
 
@@ -29,13 +29,13 @@
     │  Step 4: 输出 JSON brief -> 保存 brief-current.json
     │  Step 5: (可选) 双模式润色
     │
-    ├──-> SKILL.md（图文执行）
-    │      读 brief-current.json -> imagePrompt/captionPrompt -> 生成 -> 发布
+    ├──-> aitoearn-content-publisher.md（图文执行）
+    │      读 brief-current.json -> 英文结构化视觉指令 -> 用户确认 -> 生成 -> 发布
     │
-    └──-> SKILL-SCRIPT.md（脚本创作）
+    └──-> aitoearn-script-writer.md（脚本创作）
            读 brief-current.json -> Cinematography 分镜 -> 输出脚本 JSON
               │
-              └──-> SKILL-VIDEO.md（视频生成）
+              └──-> aitoearn-video-publisher.md（视频生成）
                      加载脚本 JSON -> videoPrompt -> 生成 -> 发布
 ```
 
@@ -124,12 +124,12 @@ C:\Users\你的用户名\.trae-cn\skills\
 ## 项目结构
 
 ```
-├── SKILL-CREATIVE-DIRECTOR.md  # 创意指导 Agent（统一入口）
-├── SKILL-SCRIPT.md             # 脚本创作技能（执行器）
-├── SKILL-VIDEO.md              # 视频生成与发布技能（执行器）
-├── SKILL.md                    # 图文生成与发布技能（执行器）
-├── config.example.json         # 配置文件模板（不含真实密钥）
-├── aitoearn-api-guide.md       # AiToEarn MCP API 参考文档
+├── aitoearn-creative-director.md  # 创意指导 Agent（统一入口）
+├── aitoearn-script-writer.md      # 脚本创作技能（执行器）
+├── aitoearn-video-publisher.md    # 视频生成与发布技能（执行器）
+├── aitoearn-content-publisher.md  # 图文生成与发布技能（执行器）
+├── config.example.json            # 配置文件模板（不含真实密钥）
+├── aitoearn-api-guide.md          # AiToEarn MCP API 参考文档
 └── README.md
 ```
 
