@@ -80,54 +80,69 @@ description: "图文内容执行与发布技能：接收创意指导 Agent 产�
 4. **视觉优先级**：用 `center foreground`、`corner`、`background`、`rim light`、`shadow` 等空间/光影词建立视觉层级。
 5. **风格分轨**：根据 brief 的 `referenceMovements` 判断走**插画赛道**还是**摄影赛道**，两者 prompt 策略完全不同（见下方风格分轨规则）。
 6. **反 AI 痕迹**：无论哪条赛道，都必须在 prompt 中注入反 AI 痕迹指令，避免生成"一看就是 AI"的图片（见下方反 AI 痕迹规则）。
-7. **字符预算管理**：API 的 `prompt` 字段上限为 **2000 字符**。转译后必须检查字符数，超限时按优先级截断（见下方字符预算规则）。
+7. **字符预算管理**：API 的 `prompt` 字段上限为 **2000 字符**，目标 ≤ 1500。翻译时同步按紧凑格式控制字符数，不先生成完整版再截断（见下方字符预算规则）。
 
-#### 字符预算规则
+#### 字符预算规则（翻译时同步控制，非事后截断）
 
-API `prompt` 字段 `maxLength = 2000`。转译完成后必须检查 `imagePromptEN` 字符数：
+API `prompt` 字段 `maxLength = 2000`。**目标字符数 ≤ 1500**（留 500 字符安全缓冲）。
 
-**字符预算分配（优先级从高到低）：**
+**🔴 核心原则：从翻译第一句话就按紧凑格式写，不要先写完整版再截断。**
 
-| 优先级 | 区块 | 预算占比 | 说明 |
-| --- | --- | --- | --- |
-| P0 | `Subject / Foreground` | ~40% | 画面主体，不可截断 |
-| P1 | `Style` | ~15% | 风格定调，不可截断 |
-| P2 | `mustInclude` | ~15% | 必含元素，反 AI 条目可压缩为关键词 |
-| P3 | `mustAvoid` | ~10% | 负面清单，可压缩为逗号分隔关键词 |
-| P4 | `Lighting` | ~10% | 可合并到 Subject 描述中 |
-| P5 | `Color palette` | ~5% | 可合并到 Style 或 Subject 中 |
-| P6 | `Mood` | ~3% | 可合并到 Style 中 |
-| P7 | `Midground` | ~2% | 超限时优先删除，内容融入 Background |
-| P8 | `Background` | ~0% | 超限时最小化为一句 |
+**默认紧凑格式：4 个区块，不单独成段的部分合并进 Subject**
 
-**截断策略：**
+| 区块 | 默认处理 | 预算 |
+| --- | --- | --- |
+| `Style` | 单独一行，1-2 句 | ~200 字符 |
+| `Subject` | 单独一行，含光影+配色+情绪+主体描述 | ~700 字符 |
+| `Background` | 单独一行，含中景融入 | ~200 字符 |
+| `mustInclude` | 逗号分隔关键词串，单行 | ~200 字符 |
+| `mustAvoid` | 逗号分隔关键词串，单行 | ~200 字符 |
 
-1. **合并区块**：将 `Lighting`、`Color`、`Mood` 合并到 `Subject` 描述中，不再单独成段
-2. **压缩 mustInclude/mustAvoid**：从换行列表改为逗号分隔关键词串，例如 `mustInclude: groom tossed in air, bride laughing, confetti shadows, varied expressions, correct hand anatomy`
-3. **删除非关键区块**：如果合并后仍超限，删除 `Midground`，将其关键元素融入 `Background` 一句话
-4. **精简描述**：去掉修饰性副词和重复信息，例如 "being tossed into the air by guests below" → "tossed by guests"
+**不单独成段的区块（默认合并到 Subject）：**
+- `Lighting` → 合并到 Subject 末尾："Warm overhead light from upper left, shadow on right."
+- `Color palette` → 合并到 Subject 中："Warm gold and champagne base, red rose accents."
+- `Mood` → 合并到 Style 中："Pure joy, championship celebration."
+- `Midground` → 融入 Background 一句话
 
-**检查流程：**
+**mustInclude/mustAvoid 始终用逗号分隔单行格式，不用换行列表：**
 
 ```
-转译完成后：
-1. 统计 imagePromptEN 字符数
-2. if <= 2000: 直接使用
-3. if > 2000:
-   a. 合并 Lighting/Color/Mood 到 Subject
-   b. 压缩 mustInclude/mustAvoid 为逗号分隔
-   c. if 仍 > 2000: 删除 Midground，融入 Background
-   d. if 仍 > 2000: 精简 Subject 描述，去掉修饰性副词
-   e. if 仍 > 2000: 告知用户 "prompt 需要精简到 2000 字符以内，已保留核心视觉元素，以下内容被压缩：[列出被压缩的部分]"
-4. 记录最终字符数，在 prompt-final.json 中添加 "imagePromptCharCount" 字段
+# ✅ 正确（紧凑）
+mustInclude: groom tossed in air arms spread, bride laughing below, gold confetti casting shadows, varied expressions, correct hand anatomy five fingers per hand
+
+# ❌ 错误（浪费字符）
+mustInclude:
+- groom tossed in air arms spread
+- bride laughing below
+- gold confetti casting shadows
+- varied expressions
+- correct hand anatomy five fingers per hand
 ```
 
-**压缩后格式示例（< 2000 字符的紧凑形式）：**
+**翻译时同步控字流程：**
 
 ```
-Style: sports manga illustration, bold dynamic linework, cel-shading, natural saturation.
+翻译过程中：
+1. 先写 Style（~200字符）→ 计数
+2. 写 Subject，把光影/配色/情绪融入其中（~700字符）→ 累计计数
+3. 写 Background，把中景融入（~200字符）→ 累计计数
+4. 写 mustInclude，逗号分隔（~200字符）→ 累计计数
+5. 写 mustAvoid，逗号分隔（~200字符）→ 累计计数
+6. 总计 > 1500？
+   a. 精简 Subject：去掉修饰性副词，如 "being tossed into the air by guests below" → "tossed by guests"
+   b. 压缩 mustAvoid：合并近义词，如 "deformed hands, extra fingers, merged fingers" → "deformed hands extra fingers"
+   c. 压缩 Background：最小化为一句
+7. 总计 > 2000？（极端情况）
+   a. 告知用户 "prompt 需要精简，已保留核心视觉元素，以下内容被压缩：[列出]"
+8. 记录最终字符数到 prompt-final.json 的 "imagePromptCharCount" 字段
+```
 
-Subject: Upper center, tall athletic man in black suit (square jawline, thick eyebrows, short wavy hair) tossed by guests, arms spread in victory pose, asymmetrical grin with laugh lines. Below, bride in white dress tilts head back laughing, teeth visible. Gold confetti swirling, some casting shadows on face and suit. Warm overhead light from upper left, shadow on right, gold confetti lit up, ambient color reflecting on skin. Warm gold and champagne base, red rose accents, natural saturation. Pure joy, championship celebration.
+**紧凑格式示例（~900 字符，远低于限制）：**
+
+```
+Style: sports manga illustration, bold dynamic linework, cel-shading, natural saturation, pure joy championship energy.
+
+Subject: Upper center, tall athletic man in black suit (square jawline, thick eyebrows, short wavy hair) tossed by guests, arms spread in victory pose, asymmetrical grin with laugh lines. Below, bride in white dress tilts head back laughing, teeth visible. Gold confetti swirling, some casting shadows on face and suit. Warm overhead light from upper left, shadow on right, gold confetti lit up, ambient color reflecting on skin. Warm gold and champagne base, red rose accents.
 
 Background: Luxury wedding venue, warm amber lights, blurred chandelier bokeh, red roses, scattered confetti on floor.
 
@@ -207,80 +222,35 @@ Style: candid documentary photograph, shot on Sony A7IV, 35mm f/1.4 lens, ISO 32
 | `outputConstraints.mustAvoid`   | `mustAvoid:` 列表                     | 逐条翻译为英文负面清单                                                 |
 | `outputConstraints.aspectRatio` | 构图比例                              | 直接填入 `aspectRatio` 参数，不写入 image prompt                       |
 
-**imagePrompt 结构化模板 — 插画赛道（纯英文）：**
+**imagePrompt 默认紧凑模板 — 插画赛道（纯英文，4 区块）：**
 
 ```
-Style: [art style, linework, rendering style, meme/cartoon aesthetic].
+Style: [art style, linework, rendering style, mood energy].
 
-Subject / Foreground: [main characters, poses, expressions, props, spatial relationships in concrete visual terms].
+Subject: [main characters, poses, expressions, props, spatial relationships]. [lighting description merged here]. [color palette merged here].
 
-Midground: [secondary scene elements, people, objects, actions].
+Background: [environment + midground merged, one paragraph].
 
-Background: [environment, architecture, sky, weather effects].
+mustInclude: [visual element 1], [visual element 2], [Chinese text if any], varied expressions across all characters, correct hand anatomy five fingers per hand, [ambient color reflecting on clothing]
 
-Lighting: [light source, shadows, rim light, ambient color].
-
-Color palette: [dominant colors, accent colors, contrast approach].
-
-Mood: [emotional tone, energy level].
-
-mustInclude:
-- [visual element 1]
-- [visual element 2]
-- [Chinese text element if any, keep original Chinese]
-- correct hand anatomy, five fingers per hand
-- varied expressions across all characters
-
-mustAvoid:
-- [avoid 1]
-- [avoid 2]
-- identical facial expressions, copy-paste smiles
-- deformed hands, extra fingers, merged fingers
-- floating elements without shadows
-- glowing edges, halo effect around characters
+mustAvoid: [avoid 1], [avoid 2], identical facial expressions copy-paste smiles, deformed hands extra fingers merged fingers, floating elements without shadows, glowing edges halo effect, oversaturated colors, cluttered elements
 ```
 
-**imagePrompt 结构化模板 — 摄影赛道（纯英文）：**
+**imagePrompt 默认紧凑模板 — 摄影赛道（纯英文，4 区块）：**
 
 ```
-Style: candid documentary photograph, shot on [camera model], [focal length] f/[aperture] lens, ISO [value], natural color grading, film grain.
+Style: candid documentary photograph, shot on [camera model] [focal length] f/[aperture], ISO [value], natural color grading film grain, [mood energy].
 
-Subject / Foreground: [main characters, poses, expressions, props — include natural skin texture description].
+Subject: [main characters, poses, expressions, props — include natural skin texture]. [lighting description merged here]. [color palette merged here].
 
-Midground: [secondary scene elements — include candid imperfections].
+Background: [environment + midground merged, include natural lighting sources and candid imperfections].
 
-Background: [environment — include natural lighting sources].
+mustInclude: [visual element 1], [visual element 2], natural skin texture with visible pores, motion blur on moving subjects, candid moment with natural imperfections, correct hand anatomy five fingers per hand, varied expressions across all characters, ambient color reflecting on clothing and skin
 
-Lighting: [available light from windows/lamps, dust particles, natural shadows].
-
-Color palette: [natural color grading, muted tones].
-
-Mood: [emotional tone, candid energy].
-
-mustInclude:
-- [visual element 1]
-- [visual element 2]
-- natural skin texture with visible pores
-- motion blur on moving subjects
-- candid moment with natural imperfections
-- correct hand anatomy, five fingers per hand
-- varied expressions across all characters
-- ambient color reflecting on clothing and skin
-
-mustAvoid:
-- [avoid 1]
-- [avoid 2]
-- waxy skin, plastic texture, airbrushed skin, poreless skin
-- identical facial expressions, copy-paste smiles
-- deformed hands, extra fingers, merged fingers
-- everything in sharp focus during motion
-- clean volumetric light beams, perfect god rays
-- perfect circular bokeh, uniform light spots
-- everyone posing for camera, synchronized cheering
-- defying gravity, floating without support
-- immaculate scene, perfectly arranged
-- floating elements without shadows
+mustAvoid: [avoid 1], [avoid 2], waxy skin plastic texture airbrushed skin poreless skin, identical facial expressions copy-paste smiles, deformed hands extra fingers merged fingers, everything in sharp focus during motion, clean volumetric light beams perfect god rays, perfect circular bokeh uniform light spots, everyone posing for camera synchronized cheering, defying gravity floating without support, immaculate scene perfectly arranged, floating elements without shadows
 ```
+
+> **禁止使用 9 区块展开格式。** 展开格式（单独的 Midground/Lighting/Color/Mood 区块 + 换行列表 mustInclude/mustAvoid）会轻易超过 2000 字符。始终使用上述 4 区块紧凑格式。
 
 **captionPrompt 映射规则：**
 
@@ -351,18 +321,13 @@ Caption requirements:
 **向用户展示格式：**
 
 ```
-已根据 brief「{direction.name}」生成图片提示词，请确认：
+已根据 brief「{direction.name}」生成图片提示词（{imagePromptCharCount} 字符 / 2000 上限），请确认：
 
 【风格】...
-【主体/前景】...
-【中景】...
-【背景】...
-【光影】...
-【配色】...
-【情绪】...
-
-必须包含：...
-必须避免：...
+【主体/前景】...（含光影、配色、情绪）
+【背景】...（含中景）
+【必须包含】...（逗号分隔）
+【必须避免】...（逗号分隔）
 
 确认后我将调用 API 生成图片。如需调整，请直接告诉我修改哪一部分。
 ```
@@ -383,6 +348,7 @@ Caption requirements:
   "timestamp": "ISO-8601",
   "imagePromptEN": "纯英文结构化视觉指令",
   "imagePromptCN": "供用户审阅的中文翻译稿",
+  "imagePromptCharCount": 0,
   "captionPromptEN": "英文文案生成指令",
   "aspectRatio": "{outputConstraints.aspectRatio}",
   "platform": "{outputConstraints.platform}",
@@ -566,7 +532,7 @@ agent-browser screenshot douyin-qrcode.png
 16. **反 AI 痕迹是硬性规则**：无论哪条赛道，mustInclude 和 mustAvoid 中必须包含反 AI 痕迹条目，不可省略
 17. **摄影赛道禁用插画词**：`illustration`、`cel-shading`、`bold outlines`、`vibrant saturated colors` 等词不得出现在摄影赛道 prompt 中
 18. **插画赛道禁用摄影词**：`photograph`、`shot on`、`ISO`、`film grain` 等词不得出现在插画赛道 prompt 中
-19. **API prompt 字段上限 2000 字符**：转译后必须检查字符数，超限时按字符预算规则截断。第一次 API 调用返回空结果时，优先排查是否为字符超限
+19. **API prompt 字段上限 2000 字符，目标 1500**：翻译时必须使用 4 区块紧凑格式（Style/Subject/Background/mustInclude+mustAvoid），禁止使用 9 区块展开格式。mustInclude/mustAvoid 始终用逗号分隔单行。第一次 API 调用返回空结果时，优先排查是否为字符超限
 20. **字符超限时不得静默丢弃反 AI 痕迹条目**：mustInclude 中的 `correct hand anatomy` 和 mustAvoid 中的 `deformed hands` 是最低保留项，不可删除
 
 ## PowerShell 脚本模板
