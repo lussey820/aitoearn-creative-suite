@@ -74,11 +74,67 @@ description: "图文内容执行与发布技能：接收创意指导 Agent 产�
 
 **转译原则（不是字段直填）：**
 
-1. **去抽象化**：把中文抽象词、梗、修辞翻译成具体可见的动作、姿态、道具、表情。例如“刮痧战神”→“white dolphin standing with hands on hips, laughing triumphantly”；“瑟瑟发抖”→“shivering with chattering teeth, arms hugging self”。
+1. **去抽象化**：把中文抽象词、梗、修辞翻译成具体可见的动作、姿态、道具、表情。例如"刮痧战神"→"white dolphin standing with hands on hips, laughing triumphantly"；"瑟瑟发抖"→"shivering with chattering teeth, arms hugging self"。
 2. **纯英文输出**：除画面中必须出现的中文文字（对联、标签、招牌等）保留原中文外，prompt 主体全部使用英文。
 3. **结构化分层**：按 `Style` → `Subject/Foreground` → `Midground` → `Background` → `Lighting` → `Color` → `Mood` → `mustInclude` → `mustAvoid` 组织。
 4. **视觉优先级**：用 `center foreground`、`corner`、`background`、`rim light`、`shadow` 等空间/光影词建立视觉层级。
-5. **模型友好术语**：使用图像生成模型高响应词汇，如 `cel-shading`、`bold outlines`、`motion lines`、`anthropomorphic`、`flat illustration`、`vibrant saturated colors`。
+5. **风格分轨**：根据 brief 的 `referenceMovements` 判断走**插画赛道**还是**摄影赛道**，两者 prompt 策略完全不同（见下方风格分轨规则）。
+6. **反 AI 痕迹**：无论哪条赛道，都必须在 prompt 中注入反 AI 痕迹指令，避免生成"一看就是 AI"的图片（见下方反 AI 痕迹规则）。
+
+#### 风格分轨规则
+
+根据 brief 内容判断目标风格：
+
+| 赛道 | 判断条件 | Style 词根 | prompt 策略 |
+| --- | --- | --- | --- |
+| **插画赛道** | `referenceMovements` 含 comic/manga/cartoon/anime/chibi/meme/emoji 等词 | `illustration, cel-shading, bold outlines` | 允许风格化、夸张表情、动态线 |
+| **摄影赛道** | `referenceMovements` 含 photography/realistic/documentary/cinematic 等词，或 brief 未提及风格但 `direction.manifesto` 描述的是真实场景 | `candid photograph, shot on [camera], [lens]` | 强调真实感、不完美、物理一致 |
+| **默认** | brief 未明确 | 根据 manifesto 内容判断：叙事性真实场景→摄影赛道；夸张/拟人/梗图→插画赛道 | — |
+
+**插画赛道 Style 模板：**
+
+```
+Style: [art style, linework, rendering style, meme/cartoon aesthetic].
+```
+
+**摄影赛道 Style 模板：**
+
+```
+Style: candid documentary photograph, shot on Sony A7IV, 35mm f/1.4 lens, ISO 3200, natural color grading, film grain.
+```
+
+#### 反 AI 痕迹规则
+
+无论插画还是摄影赛道，转译时必须遵守以下规则，降低 AI 生成痕迹：
+
+**通用反 AI 痕迹（两赛道必加）：**
+
+| 问题 | prompt 注入策略 | mustAvoid 必加项 |
+| --- | --- | --- |
+| 表情同模化 | 每个角色单独描述不同表情，用 `varied expressions`、`each person laughing differently` | `identical facial expressions`, `copy-paste smiles` |
+| 手部畸形 | 在 mustInclude 加入 `correct hand anatomy, five fingers per hand` | `deformed hands`, `extra fingers`, `merged fingers` |
+| 过度完美构图 | 加入 `imperfect framing`、`slightly off-center` | `perfect symmetry`, `overly composed` |
+| 材质分离感 | 强调环境交互：`confetti casting shadows on faces`、`ambient color reflecting on clothing` | `floating elements without shadows`, `layered composite look` |
+
+**摄影赛道额外反 AI 痕迹：**
+
+| 问题 | prompt 注入策略 | mustAvoid 必加项 |
+| --- | --- | --- |
+| 蜡质皮肤 | `natural skin texture with visible pores, subtle blemishes` | `waxy skin`, `plastic texture`, `airbrushed skin`, `poreless skin` |
+| 零动态模糊 | `motion blur on moving subjects, slight camera shake` | `everything in sharp focus during motion`, `frozen action` |
+| 体积光太干净 | `natural ambient light from windows/lamps, dust particles in air` | `clean volumetric light beams`, `perfect god rays` |
+| bokeh 太完美 | `natural lens bokeh with chromatic aberration` | `perfect circular bokeh`, `uniform light spots` |
+| 全员同步表演 | `candid moment, some people mid-blink, some looking away` | `everyone posing for camera`, `synchronized cheering` |
+| 物理悖论 | `gravity affecting clothing and hair naturally` | `defying gravity`, `floating without support` |
+| 零环境瑕疵 | `scattered items, wrinkled tablecloth, uneven lighting` | `immaculate scene`, `perfectly arranged` |
+
+**插画赛道额外反 AI 痕迹：**
+
+| 问题 | prompt 注入策略 | mustAvoid 必加项 |
+| --- | --- | --- |
+| 色彩过度饱和 | `muted color palette` 或 `natural saturation` | `oversaturated colors`, `neon glow on everything` |
+| 细节堆砌 | `clean composition with focal point` | `detail vomit`, `cluttered elements` |
+| 边缘 AI 光晕 | `flat rendering without edge glow` | `glowing edges`, `halo effect around characters` |
 
 **brief → imagePrompt 转译映射：**
 
@@ -96,7 +152,7 @@ description: "图文内容执行与发布技能：接收创意指导 Agent 产�
 | `outputConstraints.mustAvoid`   | `mustAvoid:` 列表                     | 逐条翻译为英文负面清单                                                 |
 | `outputConstraints.aspectRatio` | 构图比例                              | 直接填入 `aspectRatio` 参数，不写入 image prompt                       |
 
-**imagePrompt 结构化模板（发送给 API 的最终格式，纯英文）：**
+**imagePrompt 结构化模板 — 插画赛道（纯英文）：**
 
 ```
 Style: [art style, linework, rendering style, meme/cartoon aesthetic].
@@ -117,10 +173,58 @@ mustInclude:
 - [visual element 1]
 - [visual element 2]
 - [Chinese text element if any, keep original Chinese]
+- correct hand anatomy, five fingers per hand
+- varied expressions across all characters
 
 mustAvoid:
 - [avoid 1]
 - [avoid 2]
+- identical facial expressions, copy-paste smiles
+- deformed hands, extra fingers, merged fingers
+- floating elements without shadows
+- glowing edges, halo effect around characters
+```
+
+**imagePrompt 结构化模板 — 摄影赛道（纯英文）：**
+
+```
+Style: candid documentary photograph, shot on [camera model], [focal length] f/[aperture] lens, ISO [value], natural color grading, film grain.
+
+Subject / Foreground: [main characters, poses, expressions, props — include natural skin texture description].
+
+Midground: [secondary scene elements — include candid imperfections].
+
+Background: [environment — include natural lighting sources].
+
+Lighting: [available light from windows/lamps, dust particles, natural shadows].
+
+Color palette: [natural color grading, muted tones].
+
+Mood: [emotional tone, candid energy].
+
+mustInclude:
+- [visual element 1]
+- [visual element 2]
+- natural skin texture with visible pores
+- motion blur on moving subjects
+- candid moment with natural imperfections
+- correct hand anatomy, five fingers per hand
+- varied expressions across all characters
+- ambient color reflecting on clothing and skin
+
+mustAvoid:
+- [avoid 1]
+- [avoid 2]
+- waxy skin, plastic texture, airbrushed skin, poreless skin
+- identical facial expressions, copy-paste smiles
+- deformed hands, extra fingers, merged fingers
+- everything in sharp focus during motion
+- clean volumetric light beams, perfect god rays
+- perfect circular bokeh, uniform light spots
+- everyone posing for camera, synchronized cheering
+- defying gravity, floating without support
+- immaculate scene, perfectly arranged
+- floating elements without shadows
 ```
 
 **captionPrompt 映射规则：**
@@ -394,6 +498,10 @@ agent-browser screenshot douyin-qrcode.png
 12. **agent-browser 登录：** 打开 aitoearn 后先 snapshot 检查是否已登录
 13. 发布后区分三种终态，不在失败/审核中时声称"已发布"
 14. **必须先走创意指导 Agent 产出 brief 才能调用本 skill**——如无 brief，引导用户先走 Agent
+15. **风格分轨是必经判断**：转译前必须先判断走插画赛道还是摄影赛道，两赛道 prompt 模板和反 AI 痕迹策略不同
+16. **反 AI 痕迹是硬性规则**：无论哪条赛道，mustInclude 和 mustAvoid 中必须包含反 AI 痕迹条目，不可省略
+17. **摄影赛道禁用插画词**：`illustration`、`cel-shading`、`bold outlines`、`vibrant saturated colors` 等词不得出现在摄影赛道 prompt 中
+18. **插画赛道禁用摄影词**：`photograph`、`shot on`、`ISO`、`film grain` 等词不得出现在插画赛道 prompt 中
 
 ## PowerShell 脚本模板
 
