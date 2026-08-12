@@ -231,6 +231,7 @@ mustAvoid:
 
 | brief 字段                       | 映射方式                                       |
 | -------------------------------- | ---------------------------------------------- |
+| `direction.manifesto`            | **画面叙事锚点**：作为文案的核心叙事素材，要求文案呼应 manifesto 中描述的具体画面元素和叙事弧线，不能泛泛而谈 |
 | `toneGuidelines.writingPersona`  | 设为文案语气                                   |
 | `toneGuidelines.vocabularyLevel` | 控制用词级别                                   |
 | `toneGuidelines.sentenceRhythm`  | 控制句式节奏                                   |
@@ -241,15 +242,22 @@ mustAvoid:
 **captionPrompt 模板（英文指令，输出中文文案）：**
 
 ```
-Create a {PLATFORM} post based on this creative direction: {DIRECTION_NAME}
+Create a {PLATFORM} post for this creative direction: {DIRECTION_NAME}
+
+Visual narrative anchor (from the creative brief — your caption MUST reference specific visual elements described here, not generic hype):
+{DIRECTION_MANIFESTO}
 
 Mood anchor to convey: {MOOD_ANCHOR}
 The tone should match this persona: {WRITING_PERSONA}
 Vocabulary: {VOCABULARY_LEVEL}
 Sentence rhythm: {SENTENCE_RHYTHM}
 
-Title should be catchy. Content should hook in the first line.
-Include hashtags. Output in Chinese language only.
+Caption requirements:
+1. The caption must describe what the viewer SEES in the image — reference at least 3 specific visual elements from the visual narrative anchor above (characters, actions, props, setting, atmosphere).
+2. Build a narrative arc: set the scene → describe the key moment → deliver the emotional payoff. Do NOT stack disconnected short sentences.
+3. Use concrete imagery from the anchor, not abstract hype words. "被爱与欢呼托起" is good; "太顶了" is bad.
+4. Title should be catchy and hint at the visual content. Content should hook in the first line.
+5. Include hashtags. Output in Chinese language only.
 ```
 
 **标题句式库（生成 captionPrompt 后 AI 自查，不问用户）：**
@@ -263,11 +271,12 @@ Include hashtags. Output in Chinese language only.
 | 断言式 | [强烈观点]，[理由一句话]             | "这是近10年最精彩的世界杯决赛，没有之一"     |
 | 故事式 | 从[起点]到[终点]，[人物]的[时间跨度] | "从替补到封神，梅西用了18年才等到这一刻"     |
 
-**自检三问（生成 captionPrompt 后 AI 自查，不问用户）：**
+**自检四问（生成 captionPrompt 后 AI 自查，不问用户）：**
 
 1. 标题是否用了至少一种句式？
 2. 正文第一行是否勾住了观众？
 3. 是否避开了 `avoidPatterns` 中的套路表达？
+4. **文案是否呼应了 manifesto 中的至少 3 个具体视觉元素？** 如果文案换成另一张图的描述也能用，说明不够贴合画面，需要重写。
 
 ---
 
