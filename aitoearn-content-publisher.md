@@ -80,6 +80,61 @@ description: "图文内容执行与发布技能：接收创意指导 Agent 产�
 4. **视觉优先级**：用 `center foreground`、`corner`、`background`、`rim light`、`shadow` 等空间/光影词建立视觉层级。
 5. **风格分轨**：根据 brief 的 `referenceMovements` 判断走**插画赛道**还是**摄影赛道**，两者 prompt 策略完全不同（见下方风格分轨规则）。
 6. **反 AI 痕迹**：无论哪条赛道，都必须在 prompt 中注入反 AI 痕迹指令，避免生成"一看就是 AI"的图片（见下方反 AI 痕迹规则）。
+7. **字符预算管理**：API 的 `prompt` 字段上限为 **2000 字符**。转译后必须检查字符数，超限时按优先级截断（见下方字符预算规则）。
+
+#### 字符预算规则
+
+API `prompt` 字段 `maxLength = 2000`。转译完成后必须检查 `imagePromptEN` 字符数：
+
+**字符预算分配（优先级从高到低）：**
+
+| 优先级 | 区块 | 预算占比 | 说明 |
+| --- | --- | --- | --- |
+| P0 | `Subject / Foreground` | ~40% | 画面主体，不可截断 |
+| P1 | `Style` | ~15% | 风格定调，不可截断 |
+| P2 | `mustInclude` | ~15% | 必含元素，反 AI 条目可压缩为关键词 |
+| P3 | `mustAvoid` | ~10% | 负面清单，可压缩为逗号分隔关键词 |
+| P4 | `Lighting` | ~10% | 可合并到 Subject 描述中 |
+| P5 | `Color palette` | ~5% | 可合并到 Style 或 Subject 中 |
+| P6 | `Mood` | ~3% | 可合并到 Style 中 |
+| P7 | `Midground` | ~2% | 超限时优先删除，内容融入 Background |
+| P8 | `Background` | ~0% | 超限时最小化为一句 |
+
+**截断策略：**
+
+1. **合并区块**：将 `Lighting`、`Color`、`Mood` 合并到 `Subject` 描述中，不再单独成段
+2. **压缩 mustInclude/mustAvoid**：从换行列表改为逗号分隔关键词串，例如 `mustInclude: groom tossed in air, bride laughing, confetti shadows, varied expressions, correct hand anatomy`
+3. **删除非关键区块**：如果合并后仍超限，删除 `Midground`，将其关键元素融入 `Background` 一句话
+4. **精简描述**：去掉修饰性副词和重复信息，例如 "being tossed into the air by guests below" → "tossed by guests"
+
+**检查流程：**
+
+```
+转译完成后：
+1. 统计 imagePromptEN 字符数
+2. if <= 2000: 直接使用
+3. if > 2000:
+   a. 合并 Lighting/Color/Mood 到 Subject
+   b. 压缩 mustInclude/mustAvoid 为逗号分隔
+   c. if 仍 > 2000: 删除 Midground，融入 Background
+   d. if 仍 > 2000: 精简 Subject 描述，去掉修饰性副词
+   e. if 仍 > 2000: 告知用户 "prompt 需要精简到 2000 字符以内，已保留核心视觉元素，以下内容被压缩：[列出被压缩的部分]"
+4. 记录最终字符数，在 prompt-final.json 中添加 "imagePromptCharCount" 字段
+```
+
+**压缩后格式示例（< 2000 字符的紧凑形式）：**
+
+```
+Style: sports manga illustration, bold dynamic linework, cel-shading, natural saturation.
+
+Subject: Upper center, tall athletic man in black suit (square jawline, thick eyebrows, short wavy hair) tossed by guests, arms spread in victory pose, asymmetrical grin with laugh lines. Below, bride in white dress tilts head back laughing, teeth visible. Gold confetti swirling, some casting shadows on face and suit. Warm overhead light from upper left, shadow on right, gold confetti lit up, ambient color reflecting on skin. Warm gold and champagne base, red rose accents, natural saturation. Pure joy, championship celebration.
+
+Background: Luxury wedding venue, warm amber lights, blurred chandelier bokeh, red roses, scattered confetti on floor.
+
+mustInclude: groom tossed in air arms spread, bride laughing below, gold confetti casting shadows, varied expressions across all characters, correct hand anatomy five fingers per hand
+
+mustAvoid: identical facial expressions, deformed hands extra fingers, floating elements without shadows, glowing edges halo effect, oversaturated colors, cluttered elements
+```
 
 #### 风格分轨规则
 
@@ -511,6 +566,8 @@ agent-browser screenshot douyin-qrcode.png
 16. **反 AI 痕迹是硬性规则**：无论哪条赛道，mustInclude 和 mustAvoid 中必须包含反 AI 痕迹条目，不可省略
 17. **摄影赛道禁用插画词**：`illustration`、`cel-shading`、`bold outlines`、`vibrant saturated colors` 等词不得出现在摄影赛道 prompt 中
 18. **插画赛道禁用摄影词**：`photograph`、`shot on`、`ISO`、`film grain` 等词不得出现在插画赛道 prompt 中
+19. **API prompt 字段上限 2000 字符**：转译后必须检查字符数，超限时按字符预算规则截断。第一次 API 调用返回空结果时，优先排查是否为字符超限
+20. **字符超限时不得静默丢弃反 AI 痕迹条目**：mustInclude 中的 `correct hand anatomy` 和 mustAvoid 中的 `deformed hands` 是最低保留项，不可删除
 
 ## PowerShell 脚本模板
 
