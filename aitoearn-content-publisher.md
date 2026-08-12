@@ -263,14 +263,18 @@ mustAvoid: [avoid 1], [avoid 2], waxy skin plastic texture airbrushed skin porel
 | `toneGuidelines.avoidPatterns`   | 生成后自查排除                                 |
 | `direction.name`                 | 用作话题主题                                   |
 | `direction.moodAnchor`           | 作为情绪钩子，要求文案在第一句话或标题中体现出来 |
+| `direction.tensionElement`        | **意外元素**：要求文案暗示但不直接解释这个矛盾/反差细节 |
 
-**captionPrompt 模板（英文指令，输出中文文案）：**
+**captionPrompt 模板（英文指令，输出中文文案，含去痕规则）：**
 
 ```
 Create a {PLATFORM} post for this creative direction: {DIRECTION_NAME}
 
 Visual narrative anchor (from the creative brief — your caption MUST reference specific visual elements described here, not generic hype):
 {DIRECTION_MANIFESTO}
+
+Tension element (the unexpected detail that makes this direction non-generic — your caption MUST hint at this):
+{TENSION_ELEMENT}
 
 Mood anchor to convey: {MOOD_ANCHOR}
 The tone should match this persona: {WRITING_PERSONA}
@@ -283,6 +287,15 @@ Caption requirements:
 3. Use concrete imagery from the anchor, not abstract hype words. "被爱与欢呼托起" is good; "太顶了" is bad.
 4. Title should be catchy and hint at the visual content. Content should hook in the first line.
 5. Include hashtags. Output in Chinese language only.
+
+Anti-AI-artifact rules (MUST follow — your caption will be rejected if it reads like AI-generated text):
+1. NO template phrases: 在当今... / 不仅如此...而且... / 值得一提的是... / 让我们... / ✨ / 💫
+2. NO symmetrical structures: do not write "不仅A，而且B" or "既A又B" patterns
+3. NO empty hype: do not use "震撼""惊艳""颠覆""封神" without specific visual evidence
+4. USE colloquial interruptions: insert a parenthetical aside, a rhetorical question, or a self-correction mid-sentence
+5. USE personal perspective: write as if you (the persona) were actually there seeing this scene, not as a narrator describing it from outside
+6. USE imperfect rhythm: mix long flowing sentences with abrupt short ones. Do not keep uniform sentence length
+7. HINT at the tension element subtly — do not explain it directly, let the reader discover it
 ```
 
 **标题句式库（生成 captionPrompt 后 AI 自查，不问用户）：**
@@ -435,17 +448,66 @@ Accept: application/json, text/event-stream
 
 - 直接告知用户错误原因，询问是否修改 prompt 或放弃
 
+### Step 4.5: 文案去痕（AIGC 痕迹去除）
+
+API 返回的文案（`response.title` + `response.description`）可能仍残留 AI 味。本步骤对返回的中文文案执行一次**AIGC 痕迹去除**，在展示给用户前清洗。
+
+**去痕规则（基于 AIGC 痕迹去除大师规范）：**
+
+1. **语境融合**：确保上下文关联紧密，逻辑顺畅，消除突兀或机械过渡
+2. **多样表达**：运用丰富词汇和句式，减少重复，增加比喻、拟人等修辞
+3. **情感着色**：依据情境加入主观情感（讽刺、赞赏、疑惑），而非中性叙述
+4. **非规则化**：对过于规整的段落增加口语表达，打破模板节奏
+5. **个性化细节**：添加作者个人见解或生活经验，贴近真实人物思维
+6. **段落重构**：灵活调整段落顺序，强化叙事起承转合
+
+**去痕操作：**
+
+```
+输入：response.title + response.description（API 返回的原始文案）
+处理：
+  1. 扫描 AI 套路句式 → 替换为自然表达
+     - "在当今..." → 删除或改为具体场景切入
+     - "不仅如此...而且..." → 拆成两句独立表达
+     - "值得一提的是..." → 直接说那件事，不加引子
+     - "✨""💫" 等装饰符号 → 删除
+  2. 扫描空洞形容词 → 替换为具体视觉证据
+     - "震撼" → 描述具体看到了什么让人震撼
+     - "惊艳" → 描述具体的色彩/动作/表情
+  3. 扫描对称结构 → 打破为不对称节奏
+     - "既A又B" → 保留A，B换个说法
+  4. 检查句式节奏 → 长短句交替，不全是长句也不全是短句
+  5. 检查人称视角 → 确保是 persona 的第一人称视角，不是上帝视角叙述
+输出：去痕后的 title + description
+```
+
+**去痕后与原文对比展示给用户：**
+
+```
+📝 文案去痕完成：
+
+原标题：{original_title}
+→ 去痕后：{cleaned_title}
+
+原正文：{original_description}
+→ 去痕后：{cleaned_description}
+
+（改动：{一句话总结改了什么，如"砍掉3处AI套路口吻，加入2处口语表达"}）
+```
+
+> 如果去痕后与原文差异极小（API 生成的文案已经很自然），跳过对比展示，直接使用原文。
+
 ### Step 5: 展示结果并发布
 
-生成成功后展示结果并立即进入发布流程：
+生成成功后展示结果（使用去痕后的文案）并立即进入发布流程：
 
 ```
 ✅ 图文生成完成！
 
 🖼️ 图片：[显示 imageUrls]
 📝 文案：
-标题：{response.title}
-正文：{response.description}
+标题：{cleaned_title}
+正文：{cleaned_description}
 话题标签：{response.topics}
 
 💰 实际消耗：{points} 积分
